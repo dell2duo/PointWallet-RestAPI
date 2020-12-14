@@ -1,191 +1,27 @@
 const routes = require("express").Router();
-const connection = require("./database/connection");
-const crypto = require("crypto");
 
-const AuthController = require("./controllers/authController");
+const authController = require("./controllers/authController");
+const empresaController = require("./controllers/empresaController");
+const clienteController = require("./controllers/clienteController");
+const creditoController = require("./controllers/creditoController");
+const codigoController = require("./controllers/codigoController");
 
-routes.get("/listarCodigos", async (req, res) => {
-  const codigos = await connection("codigo").select("*");
-  return res.json(codigos);
-});
+routes.get("/listarCodigos", codigoController.listar);
+routes.post("/gerarCodigo", codigoController.gerar);
+routes.post("/resgatarCodigo", codigoController.resgatar);
 
-routes.get("/listarCreditos", async (req, res) => {
-  const creditos = await connection("credito").select("*");
-  return res.json(creditos);
-});
+routes.get("/listarCreditos", creditoController.listar);
+routes.delete("/deleteCarteira", creditoController.delete);
 
-routes.get("/listarClientes", async (req, res) => {
-  const clientes = await connection("cliente").select("*");
-  return res.json(clientes);
-});
+routes.get("/listarClientes", clienteController.listar);
+routes.get("/cadastrarCliente", clienteController.criarCliente);
+routes.post("/empresasCliente", clienteController.empresas);
 
-routes.get("/listarEmpresas", async (req, res) => {
-  const empresas = await connection("empresa").select("*");
-  return res.json(empresas);
-});
+routes.get("/listarEmpresas", empresaController.listar);
+routes.get("/cadastrarEmpresa", empresaController.criarEmpresa);
+routes.delete("/deleteEmpresa", empresaController.delete);
 
-routes.get("/cadastrarCliente", async (req, res) => {
-  const clientes = [
-    {
-      cpf: "123",
-      nome: "Petterson Kesler",
-      senha: "123",
-    },
-    {
-      cpf: "124",
-      nome: "Rafael Rocha",
-      senha: "123",
-    },
-    {
-      cpf: "125",
-      nome: "Matheus Henrique",
-      senha: "123",
-    },
-    {
-      cpf: "126",
-      nome: "Aroldo",
-      senha: "123",
-    },
-  ];
-  clientes.forEach(async (cliente) => {
-    const response = await connection("cliente").insert(cliente);
-  });
-
-  return res.status(200);
-});
-
-routes.get("/cadastrarEmpresa", async (req, res) => {
-  const empresa = {
-    nome: "Ricardo Eletro",
-    login: "125",
-    senha: "123",
-  };
-
-  const response = await connection("empresa").insert(empresa);
-
-  return res.status(200);
-});
-
-// routes.post("/loginCliente", async (req, res) => {
-//   const { cpf, senha } = req.body;
-
-//   const response = await connection("cliente").select("*").where("cpf", cpf);
-//   if (response.length === 0) {
-//     return res.json({ msg: "Cliente inexistente." }).status(404);
-//   }
-
-//   if (response[0].senha !== senha) {
-//     return res.json({ msg: "Senha incorreta." }).status(400);
-//   }
-
-//   return res.json(response[0]);
-// });
-
-routes.post("/loginCliente", AuthController.loginCliente);
-routes.post("/loginEmpresa", AuthController.loginEmpresa);
-
-// routes.post("/loginEmpresa", async (req, res) => {
-//   const { login, senha } = req.body;
-
-//   const response = await connection("empresa")
-//     .select("*")
-//     .where("login", login);
-//   if (response.length === 0) {
-//     return res.json("Empresa inexistente.").status(404);
-//   }
-
-//   if (response[0].senha !== senha) {
-//     return res.json("Senha incorreta.").status(400);
-//   }
-
-//   return res.json(response).status(200);
-// });
-
-routes.delete("/deleteEmpresa", async (req, res) => {
-  const response = await connection("empresa").where("id", req.body.id).del();
-  return res.json(`Empresa de ID ${req.body.id} deletada.`);
-});
-
-routes.delete("/deleteCarteira", async (req, res) => {
-  const response = await connection("credito")
-    .where("id_empresa", req.body.id)
-    .del();
-  return res.json(`Empresa de ID ${req.body.id_empresa} deletada.`);
-});
-
-routes.post("/gerarCodigo", async (req, res) => {
-  const hex = crypto.randomBytes(20).toString("hex").substring(0, 6);
-
-  const codigo = {
-    id_empresa: req.body.id_empresa,
-    hash: hex,
-    usado: false,
-    pontos: req.body.pontos,
-  };
-
-  const response = await connection("codigo").insert(codigo);
-
-  return res.json(codigo);
-});
-
-routes.post("/resgatarCodigo", async (req, res) => {
-  // const hex = crypto.randomBytes(20).toString("hex").substring(0, 6);
-  const { hash } = req.body;
-
-  let response = await connection("codigo").select("*").where("hash", hash);
-  // console.log(response);
-  if (!response.length) {
-    return res.json("Código inexistente.");
-  }
-  response = response[0];
-
-  if (!response.usado) {
-    let credito_cliente = await connection("credito")
-      .select("*")
-      .where("id_cliente", req.body.id)
-      .where("id_empresa", response.id_empresa);
-    credito_cliente = credito_cliente[0];
-    if (!credito_cliente) {
-      const obj = {
-        id_empresa: response.id_empresa,
-        id_cliente: req.body.id,
-        pontos: response.pontos,
-      };
-      await connection("credito").where("id_cliente", req.body.id).insert(obj);
-      await connection("codigo").where("hash", hash).update({ usado: true });
-
-      return res.json(`${obj.pontos} pontos cadastrados com sucesso!`);
-    }
-
-    const pontos = credito_cliente.pontos + response.pontos;
-    await connection("credito")
-      .where("id_cliente", req.body.id)
-      .where("id_empresa", response.id_empresa)
-      .update({ pontos: pontos });
-    await connection("codigo").where("hash", hash).update({ usado: true });
-
-    return res.json(`${pontos} pontos cadastrados com sucesso!`);
-  }
-  return res.json("Código já resgatado.");
-});
-
-routes.post("/empresasCliente", async (req, res) => {
-  const { id_cliente } = req.body;
-
-  const carteiras = await connection("credito")
-    .where("id_cliente", id_cliente)
-    .select("*")
-    .join("empresa", "empresa.id", "=", "credito.id_empresa");
-
-  let empresas = [];
-  carteiras.forEach((carteira) => {
-    empresas.push({
-      nome: carteira.nome,
-      pontos: carteira.pontos,
-      id: carteira.id_empresa,
-    });
-  });
-  return res.json(empresas).status(200);
-});
+routes.post("/loginCliente", authController.loginCliente);
+routes.post("/loginEmpresa", authController.loginEmpresa);
 
 module.exports = routes;
