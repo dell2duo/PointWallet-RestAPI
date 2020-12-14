@@ -2,6 +2,8 @@ const routes = require("express").Router();
 const connection = require("./database/connection");
 const crypto = require("crypto");
 
+const AuthController = require("./controllers/authController");
+
 routes.get("/listarCodigos", async (req, res) => {
   const codigos = await connection("codigo").select("*");
   return res.json(codigos);
@@ -54,8 +56,8 @@ routes.get("/cadastrarCliente", async (req, res) => {
 
 routes.get("/cadastrarEmpresa", async (req, res) => {
   const empresa = {
-    nome: "Ricardinho Martelinho de Ouro",
-    login: "123",
+    nome: "Ricardo Eletro",
+    login: "125",
     senha: "123",
   };
 
@@ -64,41 +66,51 @@ routes.get("/cadastrarEmpresa", async (req, res) => {
   return res.status(200);
 });
 
-routes.post("/loginCliente", async (req, res) => {
-  const { cpf, senha } = req.body;
+// routes.post("/loginCliente", async (req, res) => {
+//   const { cpf, senha } = req.body;
 
-  const response = await connection("cliente").select("*").where("cpf", cpf);
-  if (!response) {
-    res.json("Cliente inexistente.").status(404);
-  }
+//   const response = await connection("cliente").select("*").where("cpf", cpf);
+//   if (response.length === 0) {
+//     return res.json({ msg: "Cliente inexistente." }).status(404);
+//   }
 
-  if (response.senha !== senha) {
-    res.json("Senha incorreta.").status(400);
-  }
+//   if (response[0].senha !== senha) {
+//     return res.json({ msg: "Senha incorreta." }).status(400);
+//   }
 
-  return res.json(response);
-});
+//   return res.json(response[0]);
+// });
 
-routes.post("/loginEmpresa", async (req, res) => {
-  const { login, senha } = req.body;
+routes.post("/loginCliente", AuthController.loginCliente);
+routes.post("/loginEmpresa", AuthController.loginEmpresa);
 
-  const response = await connection("empresa")
-    .select("*")
-    .where("login", login);
-  if (response.length === 0) {
-    return res.json("Empresa inexistente.").status(404);
-  }
+// routes.post("/loginEmpresa", async (req, res) => {
+//   const { login, senha } = req.body;
 
-  if (response[0].senha !== senha) {
-    return res.json("Senha incorreta.").status(400);
-  }
+//   const response = await connection("empresa")
+//     .select("*")
+//     .where("login", login);
+//   if (response.length === 0) {
+//     return res.json("Empresa inexistente.").status(404);
+//   }
 
-  return res.json(response).status(200);
-});
+//   if (response[0].senha !== senha) {
+//     return res.json("Senha incorreta.").status(400);
+//   }
+
+//   return res.json(response).status(200);
+// });
 
 routes.delete("/deleteEmpresa", async (req, res) => {
   const response = await connection("empresa").where("id", req.body.id).del();
   return res.json(`Empresa de ID ${req.body.id} deletada.`);
+});
+
+routes.delete("/deleteCarteira", async (req, res) => {
+  const response = await connection("credito")
+    .where("id_empresa", req.body.id)
+    .del();
+  return res.json(`Empresa de ID ${req.body.id_empresa} deletada.`);
 });
 
 routes.post("/gerarCodigo", async (req, res) => {
@@ -155,6 +167,25 @@ routes.post("/resgatarCodigo", async (req, res) => {
     return res.json(`${pontos} pontos cadastrados com sucesso!`);
   }
   return res.json("Código já resgatado.");
+});
+
+routes.post("/empresasCliente", async (req, res) => {
+  const { id_cliente } = req.body;
+
+  const carteiras = await connection("credito")
+    .where("id_cliente", id_cliente)
+    .select("*")
+    .join("empresa", "empresa.id", "=", "credito.id_empresa");
+
+  let empresas = [];
+  carteiras.forEach((carteira) => {
+    empresas.push({
+      nome: carteira.nome,
+      pontos: carteira.pontos,
+      id: carteira.id_empresa,
+    });
+  });
+  return res.json(empresas).status(200);
 });
 
 module.exports = routes;
