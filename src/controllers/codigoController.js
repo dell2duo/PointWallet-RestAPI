@@ -9,6 +9,12 @@ module.exports = {
   async gerar(req, res) {
     const hex = crypto.randomBytes(20).toString("hex").substring(0, 6);
 
+    if (req.body.pontos < 0) {
+      return res.json({
+        msg: "Valor negativo! Digite um valor maior que zero.",
+      });
+    }
+
     const codigo = {
       id_empresa: req.body.id_empresa,
       hash: hex,
