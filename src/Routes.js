@@ -85,15 +85,20 @@ routes.post("/loginEmpresa", async (req, res) => {
   const response = await connection("empresa")
     .select("*")
     .where("login", login);
-  if (!response) {
-    res.json("Empresa inexistente.").status(404);
+  if (response.length === 0) {
+    return res.json("Empresa inexistente.").status(404);
   }
 
-  if (response.senha !== senha) {
-    res.json("Senha incorreta.").status(400);
+  if (response[0].senha !== senha) {
+    return res.json("Senha incorreta.").status(400);
   }
 
-  return res.json(response);
+  return res.json(response).status(200);
+});
+
+routes.delete("/deleteEmpresa", async (req, res) => {
+  const response = await connection("empresa").where("id", req.body.id).del();
+  return res.json(`Empresa de ID ${req.body.id} deletada.`);
 });
 
 routes.post("/gerarCodigo", async (req, res) => {
